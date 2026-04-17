@@ -6,6 +6,7 @@ const machineRoutes = require("./routes/machineRoutes");
 const occurrenceRoutes = require("./routes/occurrenceRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use("/machines", machineRoutes);
 app.use("/occurrences", occurrenceRoutes);
 app.use("/search", searchRoutes);
 app.use("/uploads-api", uploadRoutes);
+app.use("/admin", adminRoutes);
 
 require("dotenv").config();
 const cors = require("cors");
