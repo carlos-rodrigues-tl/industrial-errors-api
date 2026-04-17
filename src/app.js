@@ -1,5 +1,4 @@
 const express = require("express");
-const cors = require("cors");
 require("./database/db");
 
 const errorRoutes = require("./routes/errorRoutes");
@@ -10,7 +9,6 @@ const uploadRoutes = require("./routes/uploadRoutes");
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static("src/uploads"));
 app.use("/errors", errorRoutes);
@@ -18,6 +16,15 @@ app.use("/machines", machineRoutes);
 app.use("/occurrences", occurrenceRoutes);
 app.use("/search", searchRoutes);
 app.use("/uploads-api", uploadRoutes);
+
+require("dotenv").config();
+const cors = require("cors");
+
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+  }),
+);
 
 // rota teste
 app.get("/", (req, res) => {
