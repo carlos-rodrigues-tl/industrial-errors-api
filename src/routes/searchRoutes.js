@@ -9,45 +9,47 @@ router.get("/", (req, res) => {
     return res.status(400).json({ error: "Query obrigatória" });
   }
 
-  const terms = q.toLowerCase().split(" ");
+  const terms = q.toLowerCase().trim().split(" ");
 
   let machineCode = null;
-  let errorTerm = [];
+  let textTerms = [];
 
   terms.forEach((term) => {
     if (!isNaN(term)) {
       machineCode = term;
     } else {
-      errorTerm.push(term);
+      textTerms.push(term);
     }
   });
 
-  const errorSearch = `%${errorTerm.join("%")}%`;
+  const search = `%${textTerms.join("%")}%`;
 
-  // 🔎 Buscar erro
-  const errorSql = `
-    SELECT * FROM error_types
-    WHERE LOWER(name) LIKE ?
+  const sql = `
+    SELECT DISTINCT e.*
+    FROM error_types e
+    LEFT JOIN solutions s ON s.errorTypeId = e.id
+    LEFT JOIN occurrences o ON o.errorTypeId = e.id
+    WHERE LOWER(e.name) LIKE ?
+       OR LOWER(IFNULL(s.description,'')) LIKE ?
+       OR LOWER(IFNULL(o.solutionText,'')) LIKE ?
     LIMIT 1
   `;
 
-  db.get(errorSql, [errorSearch], (err, error) => {
+  db.get(sql, [search, search, search], (err, error) => {
     if (err) return res.status(500).json(err);
 
     if (!error) {
       return res.json({
-        message: "Nenhum erro encontrado",
+        message: "Nenhum resultado encontrado",
       });
     }
 
-    // 🔎 Buscar máquina (se tiver)
     if (machineCode) {
       db.get(
         `SELECT * FROM machines WHERE code = ?`,
         [machineCode],
         (err, machine) => {
           if (err) return res.status(500).json(err);
-
           getFullData(error, machine, res);
         },
       );
@@ -57,30 +59,27 @@ router.get("/", (req, res) => {
   });
 });
 
-// 🔥 função central
 function getFullData(error, machine, res) {
-  // 🔧 soluções
   const solutionsSql = `
     SELECT * FROM solutions
     WHERE errorTypeId = ?
     ORDER BY priority ASC
   `;
 
-  // 📅 ocorrências
   let occurrenceSql = `
-  SELECT 
-    o.*,
-    m.code as machineCode,
-    (
-      SELECT fileUrl 
-      FROM attachments 
-      WHERE occurrenceId = o.id 
-      LIMIT 1
-    ) as image
-  FROM occurrences o
-  JOIN machines m ON o.machineId = m.id
-  WHERE o.errorTypeId = ?
-`;
+    SELECT
+      o.*,
+      m.code as machineCode,
+      (
+        SELECT fileUrl
+        FROM attachments
+        WHERE occurrenceId = o.id
+        LIMIT 1
+      ) as image
+    FROM occurrences o
+    JOIN machines m ON o.machineId = m.id
+    WHERE o.errorTypeId = ?
+  `;
 
   const params = [error.id];
 
@@ -111,17 +110,14 @@ function getFullData(error, machine, res) {
 
         stats[o.solutionText].total++;
 
-        if (o.worked) {
-          stats[o.solutionText].success++;
-        }
+        if (o.worked) stats[o.solutionText].success++;
       });
 
       let bestSolution = null;
       let bestRate = 0;
 
       for (let key in stats) {
-        const { total, success } = stats[key];
-        const rate = (success / total) * 100;
+        const rate = (stats[key].success / stats[key].total) * 100;
 
         if (rate > bestRate) {
           bestRate = rate;
